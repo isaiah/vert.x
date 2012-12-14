@@ -79,24 +79,6 @@
                    (req-fn req))))
       (.listen http# port host))))
 
-;(defmacro http-listen [port host & req-fn]
-;  (let [this (gensym "this")]
-;    `(do
-;       (defn ~(symbol "-start") [~this]
-;         (let [vertx# (.getVertx ~this)
-;               http# (.createHttpServer vertx#)]
-;           (.requestHandler http#
-;             (proxy [Handler] []
-;               (~'handle [~'req]
-;                 (let [ret# (try (~@req-fn ~'req) (catch ArityException ~'e 'fail))]
-;                   (if (= ret# 'fail)
-;                     (~@req-fn ~'req vertx#))))))
-;         (.listen http# ~port ~host)))
-;  (gen-class
-;    :name "HttpServer"
-;    :extends org.vertx.java.deploy.Verticle
-;    :prefix "-"))))
-
 (defmacro http-route
   "Sinatra like route matching"
   [port host routes]
