@@ -1,13 +1,6 @@
-# clojure
-
-A Clojure library designed to ... well, that part is up to you.
-
 ## Usage
 
-FIXME
+Use meta data to keep the verticle class name.
 
-## License
-
-Copyright © 2012 FIXME
-
-Distributed under the Eclipse Public License, the same as Clojure.
+Don't have to declare the injected parameter, can be composed at
+macroexpand
