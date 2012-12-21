@@ -1,6 +1,15 @@
-## Usage
+## How to run examples
 
-Use meta data to keep the verticle class name.
+Compile verticle with 
 
-Don't have to declare the injected parameter, can be composed at
-macroexpand
+```
+lein compile vertx.http.server
+```
+
+then go to :compile-path and run
+
+```
+vertx run HttpServer
+```
+
+Use [lein-vertx](http://www.github.com/isaiah/lein-vertx) to ease the process.
