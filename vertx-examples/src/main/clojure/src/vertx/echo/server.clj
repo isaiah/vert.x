@@ -1,6 +1,6 @@
 (ns vertx.echo.server
   (:use (vertx core)))
 
-(net-server "Echo" {:port 1234}
-  (connect-handler [sock]
-    (pump sock sock)))
+(defverticle echo-server
+  (sock-listen 1234 "localhost"
+               (pump sock sock true)))

@@ -17,27 +17,24 @@
 (defn vertx-run [verticle]
   (println verticle))
 
-;; (defmacro defverticle
-;;   "Define a vertx verticle instance"
-;;   [vert & body]
-;;   `(let [vert-class# (verticlize (name ~vert))
-;;          prefix# (gensym "prefix-")
-;;          this# (gensym "this")]
-;;      (def ~(vary-meta (symbol (str '~prefix# "start")) assoc :verticle `(fn [~'vertx] ~@body) :verticle-class '~vert-class#)
-;;        (fn [this#] (vertx-run (var ~vert))))
-;;      (gen-class
-;;       :name vert-class#
-;;       :extends org.vertx.java.deploy.Verticle
-;;       :prefix prefix#)))
-
 (defmacro http-listen [port host & body]
-  `(fn [vertx#]
+  `(fn [vertx# _#]
      (let [http-server# (.createHttpServer vertx#)]
-       (.requestHandler http-server#
-                        (proxy [Handler] []
-                          (handle [req#]
-                            ((fn [~'vertx ~'req] ~@body) vertx# req#))))
+       ((fn [~'vertx ~'http-server] ~@body) vertx# http-server#)
        (.listen http-server# ~port ~host))))
+
+(defmacro http-connect [port host & body]
+  `(fn [vertx# _#]
+     (let [http-client# (.createHttpClient vertx#)]
+       (doto http-client# (.setPort ~port) (.setHost ~host))
+       ((fn [~'vertx ~'client] ~@body) vertx# http-client#))))
+
+(defmacro run-verticles [& verts]
+  `(fn [_# container#]
+     (doseq [v# (list ~@verts)]
+       (doseq [name# (vals (ns-interns v#))]
+         (when-let [verticle# (:verticle (meta name#))]
+           (.deployVerticle container# verticle#))))))
 
 (defmacro defverticle
   "Define a vertx verticle instance."
@@ -47,12 +44,40 @@
         vert-class (-> vert str verticlize)]
     `(do
        (defn ~(vary-meta (symbol (str prefix "start")) assoc :verticle vert-class) [~this]
-         (let [vertx# (.getVertx ~this)]
-           (~body vertx#)))
+         (let [vertx# (.getVertx ~this)
+               container# (.getContainer ~this)]
+           (~body vertx# container#)))
        (gen-class
         :name ~vert-class
         :extends org.vertx.java.deploy.Verticle
         :prefix ~(str prefix)))))
+
+(defmacro handler [expr & body]
+  `(proxy [Handler] []
+    (handle ~expr
+      ~@body)))
+
+(defmacro ws-handler [http-server expr & body]
+  `(.websocketHandler ~http-server
+                     (handler ~expr ~@body)))
+
+(defmacro req-handler [http-server expr & body]
+  `(.requestHandler ~http-server
+                        (handler ~expr ~@body)))
+
+(defmacro async-result-handler [expr & body]
+  `(proxy [AsyncResultHandler] []
+    (handle ~expr
+      ~@body)))
+
+(defmacro deploy-verticles [& args]
+  `(defverticle ~(gensym "container")
+     (run-verticles ~@args)))
+
+(defmacro sock-connect [port host body]
+  `(fn [vertx# container#]
+     (let [client# (.createNetClient vertx#)]
+       (.connect client# ~port ~host ~body))))
 
 (defmacro connect [port host & body]
   (let [this (gensym "this")
@@ -70,121 +95,54 @@
         :extends org.vertx.java.deploy.Verticle
         :prefix ~prefix))))
 
-(defn verticles [ns]
-  (remove nil? (map (comp :verticle-class meta) (vals (ns-interns ns)))))
+(defmacro data-handler [sock expr & body]
+  `(.dataHandler ~sock
+                 (handler ~expr ~@body)))
 
-(defn run-verticles [verts]
-  (doseq [v verts]
-    (sh "vertx" "run" v))) ; TODO use with-sh-dir :compile-path
-
-(defn data-handler [sock data-fn]
-  (.dataHandler sock
-                (proxy [Handler] []
-                  (handle [buf]
-                    (data-fn buf)))))
-
-(defmacro net-server [name config & body]
-  (let [{:keys [host port] :or {host "localhost" port 8080}} config
-        this (gensym "this")
-        prefix (gensym "-")]
-    `(do
-       (defn ~(symbol (str ~prefix "start")) [~this]
-         (let [vertx# (.getVertx ~this)
-               net# (.createNetServer vertx#)]
-           (.connectHandler net# ~@body)
-           (.listen net# ~port ~host)))
-       (gen-class
-        :name ~name
-        :extends org.vertx.java.deploy.Verticle
-        :prefix ~prefix))))
-
-(defmacro connect-handler [sock & body]
-  `(proxy [Handler] []
-     (~'handle ~sock
-       ~@body)))
-
-                                        ;(defn connect-handler [connect-fn]
-                                        ;  (proxy [Handler] []
-                                        ;    (handle [sock]
-                                        ;      (connect-fn sock))))
-
-(comment (defn http-listen [port host req-fn]
-           (fn [vertx]
-             (let [http# (.createHttpServer vertx)]
-               (.requestHandler http#
-                                (proxy [Handler] []
-                                  (handle [req]
-                                    (req-fn req))))
-               (.listen http# port host)))))
+(defmacro sock-listen
+  "create a net server, takes port host and connect handler"
+  [port host & body]
+  `(fn [vertx# container#]
+     (let [server# (.createNetServer vertx#)]
+       (.connectHandler server#
+                        (proxy [Handler] []
+                          (handle [~'sock]
+                            ~@body)))
+       (.listen server# ~port ~host))))
 
 (defmacro http-route
   "Sinatra like route matching"
-  [port host routes]
-  (let [this (gensym "this")
-        prefix (gensym "-")]
-    `(do
-       (defn ~(symbol (str ~prefix "start")) [~this]
-         (let [vertx# (.getVertx ~this)
-               http# (.createHttpServer vertx#)
-               router# (RouteMatcher.)]
-           (~routes router#)
-           (-> http#
-               (.requestHandler router#)
-               (.listen ~port ~host))))
-       (gen-class
-        :name "Sinatra" ; place holder
-        :extends org.vertx.java.deploy.Verticle
-        :prefix ~prefix))))
+  [port host & body]
+  `(fn [vertx# container#]
+     (let [http# (.createHttpServer vertx#)
+           router# (RouteMatcher.)]
+       ((fn [~'router] ~@body) router#)
+       (-> http#
+           (.requestHandler router#)
+           (.listen ~port ~host)))))
 
-(defmacro http-connect [port host & body]
-  (let [this (gensym "this")
-        prefix (gensym "-")]
-    `(do
-       (defn ~(symbol (str ~prefix "start")) [~this]
-         (let [vertx# (.getVertx ~this)
-               http# (.createHttpClient vertx#)]
-           (doto http# (.setPort ~port) (.setHost ~host))
-           (~@body http#)))
-       (gen-class
-        :name "HttpClient"
-        :extends org.vertx.java.deploy.Verticle
-        :prefix ~prefix))))
-
-(defn open-file [vertx filename file-fn]
+(defn open-file [vertx filename handler]
   (-> vertx .fileSystem
-      (.open filename
-             (proxy [AsyncResultHandler] []
-               (handle [ar]
-                 (file-fn (.result ar)))))))
+      (.open filename handler)))
 
 (defn end-handler
   "call the callback when the request ends"
   [req callback]
-  (.endHandler req
-               (proxy [SimpleHandler] []
-                                        ; this method is called with nil.
-                 (handle [_]
-                   (callback)))))
+  (.endHandler req callback))
 
 (defn close-file [f callback]
-  (.close f
-          (proxy [AsyncResultHandler] []
-            (handle [ar]
-              (if (nil? (.exception ar))
-                (callback ar)
-                (-> ar .exception (.printStackTrace (System/err))))))))
+  (.close f callback))
 
-(defn get-now [client path body-fn]
+(defmacro get-now [client path & body]
   "Send a get request and block before the body returned"
-  (.getNow client path
-           (proxy [Handler] []
-             (handle [resp]
-               (.bodyHandler resp
-                             (proxy [Handler] []
-                               (handle [data]
-                                 (body-fn data))))))))
+  `(.getNow ~client ~path
+            (proxy [Handler] []
+              (handle [resp#]
+                (.bodyHandler resp#
+                              (proxy [Handler] []
+                                (handle [data#]
+                                  ((fn [~'buf] ~@body) data#))))))))
 
-(defn http-put [client ])
 (defn end-req
   "syntax sugar for end request"
   ([req buf]
@@ -199,24 +157,6 @@
 (defn params [req key]
   "syntax sugar for get parameters"
   (-> req .params (.get key)))
-
-                                        ;(defmacro request-handler [req handlers & body]
-                                        ;  (let [{:keys [data-handler body-handler end-handler]} handlers]
-                                        ;    `(proxy [Handler] []
-                                        ;       (~'handle [^HttpServerRequest ~@req]
-                                        ;         (if (not (nil? ~data-handler))
-                                        ;           (.dataHandler ~@req (proxy [Handler] []
-                                        ;                                 (~'handle [~'buf]
-                                        ;                                   (~@data-handler ~'buf)))))
-                                        ;         (if (not (nil? ~body-handler))
-                                        ;           (.bodyHandler ~@req (proxy [Handler] []
-                                        ;                                 (~'handle [~'body-buffer]
-                                        ;                                   (~@body-handler ~'body-buffer)))))
-                                        ;         ;(if (not (nil? ~end-handler))
-                                        ;         ;  (.endHandler ~@req (proxy [SimpleHandler] []
-                                        ;         ;                       (~'handle []
-                                        ;         ;                         (~@end-handler)))))
-                                        ;         ~@body))))
 
 (defn pump
   ([sock1 sock2]
