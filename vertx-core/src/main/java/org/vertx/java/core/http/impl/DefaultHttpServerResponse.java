@@ -63,8 +63,8 @@ public class DefaultHttpServerResponse implements HttpServerResponse {
   	this.conn = conn;
     this.version = request.getProtocolVersion();
     this.response = new DefaultHttpResponse(version, HttpResponseStatus.OK, false);
-    this.keepAlive = version == HttpVersion.HTTP_1_1 ||
-        (version == HttpVersion.HTTP_1_0 && request.headers().contains(org.vertx.java.core.http.HttpHeaders.CONNECTION, org.vertx.java.core.http.HttpHeaders.KEEP_ALIVE, true));
+    this.keepAlive = (version == HttpVersion.HTTP_1_1 && ! request.headers().contains(CONNECTION, CLOSE, true)) ||
+            (version == HttpVersion.HTTP_1_0 && request.headers().contains(CONNECTION, KEEP_ALIVE, true));
   }
 
   @Override
@@ -454,8 +454,11 @@ public class DefaultHttpServerResponse implements HttpServerResponse {
   }
 
   private void prepareHeaders() {
-    if (version == HttpVersion.HTTP_1_0 && keepAlive) {
-      response.headers().set(org.vertx.java.core.http.HttpHeaders.CONNECTION, org.vertx.java.core.http.HttpHeaders.KEEP_ALIVE);
+    if (keepAlive) {
+      if (version == HttpVersion.HTTP_1_0)
+        response.headers().set(org.vertx.java.core.http.HttpHeaders.CONNECTION, org.vertx.java.core.http.HttpHeaders.KEEP_ALIVE);
+    } else {
+        response.headers().set(org.vertx.java.core.http.HttpHeaders.CONNECTION, org.vertx.java.core.http.HttpHeaders.CLOSE);
     }
     if (chunked) {
       response.headers().set(org.vertx.java.core.http.HttpHeaders.TRANSFER_ENCODING, org.vertx.java.core.http.HttpHeaders.CHUNKED);
