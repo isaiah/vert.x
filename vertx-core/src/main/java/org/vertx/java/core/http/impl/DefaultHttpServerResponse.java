@@ -31,6 +31,7 @@ import org.vertx.java.core.impl.DefaultFutureResult;
 import org.vertx.java.core.impl.VertxInternal;
 
 import java.io.File;
+import java.util.Date;
 
 /**
  *
@@ -63,8 +64,8 @@ public class DefaultHttpServerResponse implements HttpServerResponse {
   	this.conn = conn;
     this.version = request.getProtocolVersion();
     this.response = new DefaultHttpResponse(version, HttpResponseStatus.OK, false);
-    this.keepAlive = (version == HttpVersion.HTTP_1_1 && ! request.headers().contains(CONNECTION, CLOSE, true)) ||
-            (version == HttpVersion.HTTP_1_0 && request.headers().contains(CONNECTION, KEEP_ALIVE, true));
+    this.keepAlive = (version == HttpVersion.HTTP_1_1 && ! request.headers().contains(org.vertx.java.core.http.HttpHeaders.CONNECTION, org.vertx.java.core.http.HttpHeaders.CLOSE, true)) ||
+            (version == HttpVersion.HTTP_1_0 && request.headers().contains(org.vertx.java.core.http.HttpHeaders.CONNECTION, org.vertx.java.core.http.HttpHeaders.KEEP_ALIVE, true));
   }
 
   @Override
@@ -465,6 +466,7 @@ public class DefaultHttpServerResponse implements HttpServerResponse {
     } else if (version != HttpVersion.HTTP_1_0 && !contentLengthSet()) {
       response.headers().set(org.vertx.java.core.http.HttpHeaders.CONTENT_LENGTH, "0");
     }
+    response.headers().set(org.vertx.java.core.http.HttpHeaders.DATE, new Date());
   }
 
 
