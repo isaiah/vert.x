@@ -456,10 +456,9 @@ public class DefaultHttpServerResponse implements HttpServerResponse {
 
   private void prepareHeaders() {
     if (keepAlive) {
-      if (version == HttpVersion.HTTP_1_0)
-        response.headers().set(org.vertx.java.core.http.HttpHeaders.CONNECTION, org.vertx.java.core.http.HttpHeaders.KEEP_ALIVE);
+      response.headers().set(org.vertx.java.core.http.HttpHeaders.CONNECTION, org.vertx.java.core.http.HttpHeaders.KEEP_ALIVE);
     } else {
-        response.headers().set(org.vertx.java.core.http.HttpHeaders.CONNECTION, org.vertx.java.core.http.HttpHeaders.CLOSE);
+      response.headers().set(org.vertx.java.core.http.HttpHeaders.CONNECTION, org.vertx.java.core.http.HttpHeaders.CLOSE);
     }
     if (chunked) {
       response.headers().set(org.vertx.java.core.http.HttpHeaders.TRANSFER_ENCODING, org.vertx.java.core.http.HttpHeaders.CHUNKED);
