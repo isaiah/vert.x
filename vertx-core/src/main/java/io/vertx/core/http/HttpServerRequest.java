@@ -139,6 +139,12 @@ public interface HttpServerRequest extends ReadStream<HttpServerRequest> {
   NetSocket netSocket();
 
   /**
+   * Get if the request is hijacked.
+   */
+
+  boolean isHijacked();
+
+  /**
    * Call this with true if you are expecting a multi-part form to be submitted in the request
    * This must be called before the body of the request has been received
    * @param expect
