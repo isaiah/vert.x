@@ -69,6 +69,7 @@ public class DefaultHttpServerRequest implements HttpServerRequest {
   private URI absoluteURI;
 
   private NetSocket netSocket;
+  private boolean hijacked;
   private Handler<HttpServerFileUpload> uploadHandler;
   private Handler<Void> endHandler;
   private MultiMap attributes;
@@ -80,6 +81,7 @@ public class DefaultHttpServerRequest implements HttpServerRequest {
     this.conn = conn;
     this.request = request;
     this.response = response;
+    this.hijacked = false;
   }
 
   @Override
@@ -234,9 +236,15 @@ public class DefaultHttpServerRequest implements HttpServerRequest {
   @Override
   public NetSocket netSocket() {
     if (netSocket == null) {
+      this.hijacked = true;
       netSocket = conn.createNetSocket();
     }
     return netSocket;
+  }
+
+  @Override
+  public boolean isHijacked() {
+    return this.hijacked;
   }
 
   @Override
