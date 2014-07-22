@@ -94,7 +94,7 @@ public class DefaultHttpServerResponse implements HttpServerResponse {
 
   @Override
   public HttpServerResponse setStatusCode(int statusCode) {
-    this.response.setStatus(new HttpResponseStatus(statusCode, response.getStatus().reasonPhrase()));
+    this.response.setStatus(HttpResponseStatus.valueOf(statusCode));
     return this;
   }
 
