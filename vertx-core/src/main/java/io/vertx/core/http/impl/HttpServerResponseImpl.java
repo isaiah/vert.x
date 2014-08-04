@@ -74,8 +74,8 @@ public class HttpServerResponseImpl implements HttpServerResponse {
   	this.conn = conn;
     this.version = request.getProtocolVersion();
     this.response = new DefaultHttpResponse(version, HttpResponseStatus.OK, false);
-    this.keepAlive = (version == HttpVersion.HTTP_1_1 && ! request.headers().contains(org.vertx.java.core.http.HttpHeaders.CONNECTION, org.vertx.java.core.http.HttpHeaders.CLOSE, true)) ||
-            (version == HttpVersion.HTTP_1_0 && request.headers().contains(org.vertx.java.core.http.HttpHeaders.CONNECTION, org.vertx.java.core.http.HttpHeaders.KEEP_ALIVE, true));
+    this.keepAlive = (version == HttpVersion.HTTP_1_1 && ! request.headers().contains(HttpHeaders.CONNECTION, HttpHeaders.CLOSE, true)) ||
+            (version == HttpVersion.HTTP_1_0 && request.headers().contains(HttpHeaders.CONNECTION, HttpHeaders.KEEP_ALIVE, true));
   }
 
   @Override
@@ -470,7 +470,7 @@ public class HttpServerResponseImpl implements HttpServerResponse {
     } else if (version != HttpVersion.HTTP_1_0 && !contentLengthSet()) {
       response.headers().set(HttpHeaders.CONTENT_LENGTH, "0");
     }
-    response.headers().set(org.vertx.java.core.http.HttpHeaders.DATE, new Date());
+    response.headers().set(HttpHeaders.DATE, new Date());
   }
 
 
